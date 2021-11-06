@@ -12,6 +12,7 @@ public class Movement : MonoBehaviour
     private AnimationScript anim;
     private CapsuleCollider2D hitbox;
     private SpriteRenderer sprite_renderer;
+    private Transform location;
 
     [Space]
     [Header("Stats")]
@@ -29,13 +30,18 @@ public class Movement : MonoBehaviour
     public bool wallSlide;
     public bool isDashing;
     // Joe's variables
-    private bool justToggled = false;
+    // private bool justToggled = false;
     private bool newFeatureEnabled = false;
+    private bool distinctMovement = false;
 
     [Space]
 
     private bool groundTouch;
     private bool hasDashed;
+    // BRANDON VARS:
+    private bool coyoteTime;
+    private bool coyoteTimeReset;
+    // END BRANDON VARS
 
     public int side = 1;
     public Vector2 orgSize;
@@ -56,7 +62,9 @@ public class Movement : MonoBehaviour
         anim = GetComponentInChildren<AnimationScript>();
         hitbox = GetComponent<CapsuleCollider2D>();
         sprite_renderer = GetComponentInChildren<SpriteRenderer>();
+        location = GetComponent<Transform>();
         orgSize = hitbox.size;
+
     }
 
     // Update is called once per frame
@@ -68,20 +76,48 @@ public class Movement : MonoBehaviour
         float yRaw = Input.GetAxisRaw("Vertical");
         Vector2 dir = new Vector2(x, y);
 
+        //DEATH CODE
+        if(location.transform.position.y < -8 && newFeatureEnabled){
+            location.transform.position = new Vector2(-8.1f, -2.5f); //set these values for respawn loc
+            rb.velocity = new Vector2(0,0);
+        }
+
         Walk(dir);
         anim.SetHorizontalMovement(x, y, rb.velocity.y);
 
         //Added code
         //------------------------------
-        if(Input.GetButtonDown("Fire3") && !justToggled)
-        {
-            newFeatureEnabled = !newFeatureEnabled;
-            justToggled = true;
+        if(Input.GetKeyDown(KeyCode.Alpha1)) {
+            Debug.Log("Switching to Base Movement");
+            newFeatureEnabled = false;
+            speed = 7;
+            jumpForce = 12;
+            dashSpeed = 40;
         }
-        if(Input.GetButtonUp("Fire3"))
-        {
-            justToggled = false;
+        if(Input.GetKeyDown(KeyCode.Alpha2)) {
+            Debug.Log("Switching to Polished Movement");
+            newFeatureEnabled = true;
+            speed = 7;
+            jumpForce = 12;
+            dashSpeed = 40;
         }
+        if(Input.GetKeyDown(KeyCode.Alpha3)){
+            Debug.Log("Switching to Distinct Movement");
+            newFeatureEnabled = true;
+            distinctMovement = !distinctMovement;
+            speed = 10;
+            jumpForce = 15;
+            dashSpeed = 30;
+        }
+        // if(Input.GetButtonDown("Fire3") && !justToggled)
+        // {
+        //     newFeatureEnabled = !newFeatureEnabled;
+        //     justToggled = true;
+        // }
+        // if(Input.GetButtonUp("Fire3"))
+        // {
+        //     justToggled = false;
+        // }
         //------------------------------
 
         if (coll.onWall && Input.GetButton("Fire2") && canMove)
@@ -107,12 +143,15 @@ public class Movement : MonoBehaviour
         //Code Changed here
         //------------------------
         if(newFeatureEnabled == true){
+            /*
             if(!coll.onGround && !coll.onWall)
-            {
-                hitbox.size = new Vector2(orgSize.x - 0.3f, orgSize.y - 0.3f);
+            {   
+                hitbox.size = new Vector2(orgSize.x - 0.2f, orgSize.y - 0.2f);
             }else{
+                print("IM STUCK");
                 hitbox.size = new Vector2(orgSize.x, orgSize.y);
             }
+            */
 
             if(hasDashed)
             {
@@ -163,11 +202,19 @@ public class Movement : MonoBehaviour
         if (Input.GetButtonDown("Jump"))
         {
             anim.SetTrigger("jump");
-
-            if (coll.onGround)
-                Jump(Vector2.up, false);
-            if (coll.onWall && !coll.onGround)
-                WallJump();
+            if (!newFeatureEnabled){
+                if (coll.onGround)
+                    Jump(Vector2.up, false);
+                if (coll.onWall && !coll.onGround)
+                    WallJump();
+            }
+            else{ // BRANDON EDIT
+                if (coll.onWall && !coll.onGround)
+                    WallJump();
+                else if (coll.onGround || coyoteTime)
+                    Jump(Vector2.up, false);
+            } // END BRANDON EDIT
+            
         }
 
         if (Input.GetButtonDown("Fire1") && !hasDashed)
@@ -176,17 +223,32 @@ public class Movement : MonoBehaviour
                 Dash(xRaw, yRaw);
         }
 
-        if (coll.onGround && !groundTouch)
-        {
-            GroundTouch();
-            groundTouch = true;
-        }
+        if (!newFeatureEnabled) {
+            if (coll.onGround && !groundTouch)
+            {
+                GroundTouch();
+                groundTouch = true;
+            }
 
-        if(!coll.onGround && groundTouch)
-        {
-            groundTouch = false;
+            if(!coll.onGround && groundTouch)
+            {
+                groundTouch = false;
+            }
         }
+        else{   // BRANDON EDIT
+            if (coll.onGround && !groundTouch)
+            {
+                GroundTouch();
+                groundTouch = true;
+                coyoteTimeReset = true;
+            }
 
+            if(!coll.onGround && groundTouch)
+            {
+                groundTouch = false;
+                if(coyoteTimeReset){ StartCoroutine(CoyoteTime(0.1f)); }
+            }
+        }   // END SEGMENT
         WallParticle(y);
 
         if (wallGrab || wallSlide || !canMove)
@@ -217,12 +279,12 @@ public class Movement : MonoBehaviour
     // Ivan's implementation: Dash Collision Redirection
     // changes the velocity of the player depending if they are colliding against the ground or walls
     void DashAgainstWall(float y) {
-        rb.velocity = Vector2.zero;
+        if(!distinctMovement) rb.velocity = Vector2.zero;   // when in base/polished, we set velocity of starting dash position to 0, else we keep the momentum of player
         Vector2 dir = new Vector2(0, y);
         rb.velocity += dir.normalized * dashSpeed;
     }
     void DashAgainstGround(float x) {
-        rb.velocity = Vector2.zero;
+        if(!distinctMovement) rb.velocity = Vector2.zero;   // when in base/polished, we set velocity of starting dash position to 0, else we keep the momentum of player
         Vector2 dir = new Vector2(x, 0);
         rb.velocity += dir.normalized * dashSpeed;
     }
@@ -243,7 +305,8 @@ public class Movement : MonoBehaviour
         } else if(coll.onGround && newFeatureEnabled) {
             DashAgainstGround(x);
         } else {    // if the player is not colliding with surfaces or the player does not have implemented movement
-            rb.velocity = Vector2.zero;
+            // when in base/polished, we set velocity of starting dash position to 0, else we keep the momentum of player
+            if(!distinctMovement) rb.velocity = Vector2.zero;
             Vector2 dir = new Vector2(x, y);
 
             rb.velocity += dir.normalized * dashSpeed;
@@ -264,8 +327,11 @@ public class Movement : MonoBehaviour
         GetComponent<BetterJumping>().enabled = false;
         wallJumped = true;
         isDashing = true;
+        // --- POTENTIAL FIX FOR DASH STOPPING ON TOUCH WALL(IVAN'S)
+        // if(coll.onWall || coll.onGround)
+        // {
         
-
+        // }
         yield return new WaitForSeconds(.3f);
 
         dashParticle.Stop();
@@ -360,6 +426,12 @@ public class Movement : MonoBehaviour
         slideParticle.transform.parent.localScale = new Vector3(ParticleSide(), 1, 1);
         ParticleSystem particle = wall ? wallJumpParticle : jumpParticle;
 
+        if(newFeatureEnabled){ // BRANDON EDIT
+            StopCoroutine(CoyoteTime(0));
+            coyoteTime = false;
+            coyoteTimeReset = false;
+        }
+
         rb.velocity = new Vector2(rb.velocity.x, 0);
         rb.velocity += dir * jumpForce;
 
@@ -371,6 +443,14 @@ public class Movement : MonoBehaviour
         canMove = false;
         yield return new WaitForSeconds(time);
         canMove = true;
+    }
+
+    // Coroutine not called unless newFeatureEnabled. Part of Brandon's edits.
+    IEnumerator CoyoteTime(float time) {
+        coyoteTime = true;
+        yield return new WaitForSeconds(time);
+        groundTouch = false;
+        coyoteTime = false;
     }
 
     void RigidbodyDrag(float x)
