@@ -13,6 +13,7 @@ public class Movement : MonoBehaviour
     private CapsuleCollider2D hitbox;
     private SpriteRenderer sprite_renderer;
     private Transform location;
+    private SpriteRenderer halo;
 
     [Space]
     [Header("Stats")]
@@ -45,6 +46,7 @@ public class Movement : MonoBehaviour
 
     public int side = 1;
     public Vector2 orgSize;
+    GameObject ChildGameObject0;
 
 
     [Space]
@@ -63,6 +65,9 @@ public class Movement : MonoBehaviour
         hitbox = GetComponent<CapsuleCollider2D>();
         sprite_renderer = GetComponentInChildren<SpriteRenderer>();
         location = GetComponent<Transform>();
+        ChildGameObject0 = this.transform.GetChild(3).gameObject;
+        halo = ChildGameObject0.GetComponent<SpriteRenderer>();
+        halo.enabled = false;
         orgSize = hitbox.size;
 
     }
@@ -78,6 +83,8 @@ public class Movement : MonoBehaviour
 
         //DEATH CODE
         if(location.transform.position.y < -8 && newFeatureEnabled){
+            halo.enabled = true;
+            StartCoroutine(respawnHalo());
             location.transform.position = new Vector2(-8.1f, -2.5f); //set these values for respawn loc
             rb.velocity = new Vector2(0,0);
         }
@@ -316,6 +323,11 @@ public class Movement : MonoBehaviour
         StartCoroutine(DashWait());
     }
 
+    IEnumerator respawnHalo()
+    {
+        yield return new WaitForSeconds(0.75f);
+        halo.enabled = false;
+    }
     IEnumerator DashWait()
     {
         FindObjectOfType<GhostTrail>().ShowGhost();
@@ -327,11 +339,6 @@ public class Movement : MonoBehaviour
         GetComponent<BetterJumping>().enabled = false;
         wallJumped = true;
         isDashing = true;
-        // --- POTENTIAL FIX FOR DASH STOPPING ON TOUCH WALL(IVAN'S)
-        // if(coll.onWall || coll.onGround)
-        // {
-        
-        // }
         yield return new WaitForSeconds(.3f);
 
         dashParticle.Stop();
@@ -339,8 +346,6 @@ public class Movement : MonoBehaviour
         GetComponent<BetterJumping>().enabled = true;
         wallJumped = false;
         isDashing = false;
-        //Added Line below
-        //hitbox.size = new Vector2(orgSize.x, orgSize.y);
     }
 
     IEnumerator GroundDash()
